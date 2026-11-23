@@ -1,6 +1,6 @@
-package require Tcl 8.6 9
-package require tjson 1.0.30
-package require tpathexp 1.2.0
+package require Tcl
+package require tjson
+package require tpathexp
 
 namespace eval ::web::core {
     variable directories [dict create]
@@ -30,12 +30,7 @@ proc ::web::core::register {package directory} {
 proc ::web::core::directory {package} {
     variable directories
     if {![dict exists $directories $package]} {
-        set loaded [package provide $package]
-        if {$loaded eq {}} {
-            package require ${package}::manifest
-        } else {
-            package require -exact ${package}::manifest $loaded
-        }
+        package require ${package}::manifest
     }
     return [dict get $directories $package]
 }

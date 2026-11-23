@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.18)
+project(web-core VERSION 0.1.0 LANGUAGES NONE)
+set(PACKAGE_DIR "lib/web-core${PROJECT_VERSION}")
+install(FILES pkgIndex.tcl readme.md LICENSE DESTINATION "${PACKAGE_DIR}")
+install(DIRECTORY library schemas DESTINATION "${PACKAGE_DIR}")
+
+include(CTest)
+if(BUILD_TESTING)
+    find_program(TCLSH NAMES tclsh9.1 tclsh REQUIRED)
+    add_test(NAME web-core COMMAND "${TCLSH}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/core.test")
+endif()

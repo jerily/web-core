@@ -1,0 +1,13 @@
+{
+  "name": "web-core",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Read installed web package manifests and register routes and middleware on a Tcl router.",
+  "scripts": {},
+  "dependencies": {
+    "tcl": ">=8.6.0,<10.0.0",
+    "tjson": "^1.0.30",
+    "tpathexp": "^1.2.0"
+  },
+  "devDependencies": {}
+}

@@ -1,0 +1,116 @@
+package require tcltest 2
+namespace import ::tcltest::test
+set here [file dirname [file normalize [info script]]]
+lappend auto_path [file dirname $here]
+package require web-core 0.1.0
+::web::core::register route-fixture $here
+
+namespace eval ::plan_test {
+    variable events {}
+    variable config {key {a dictionary with spaces}}
+}
+
+# Record the enter order and return the request.
+proc ::plan_test::enter {label context request} {
+    variable events
+    lappend events [list enter $label]
+    return $request
+}
+
+# Record the reverse unwind order and return the response.
+proc ::plan_test::leave {label context request response} {
+    variable events
+    lappend events [list leave $label]
+    return $response
+}
+
+# Echo the bound mount, parameter, and literal command word.
+proc ::plan_test::item {config request context params} {
+    dict create statusCode 200 body [list $config [dict get $params id]]
+}
+
+# Preserve the binding indices for inspection by a lazy host.
+proc ::plan_test::defer {command indices} {
+    list ::plan_test::later $command $indices
+}
+
+set manifest [::web::core::manifest route-fixture]
+test core-options {only recognized name/value options are accepted} -body {
+    list [::web::core::options {-a 1 -b 2} -b 3] [catch {::web::core::options {-a 1} -b 2}] \
+        [catch {::web::core::options {-a 1} -a}]
+} -result {{-a 1 -b 3} 1 1}
+
+test core-native {bind the configuration as one argument and install hooks in order} -setup {
+    set router [::tpathexp::router]
+    set ::plan_test::events {}
+} -body {
+    set plan [::web::core::route_plan $manifest /work/ $::plan_test::config {enabled true}]
+    ::web::core::install $router $plan
+    set response [$router dispatch {method GET path /work/123} context]
+    list [dict get $response body] $::plan_test::events
+} -cleanup {$router destroy} -result [list [list $::plan_test::config 123] [list \
+    [list enter outer] [list enter inner] [list enter {route; $config [example]}] \
+    [list leave $::plan_test::config] [list leave inner] [list leave outer]]]
+
+test core-conditional {disabled routes reserve their paths and settings must be boolean} -body {
+    set plan [::web::core::route_plan $manifest /work {}]
+    list [dict get $plan paths] [dict get $plan routes] [catch {::web::core::route_plan $manifest /work {} {enabled invalid}}]
+} -result {/work/:id {} 1}
+
+test core-collision {a reserved path collision aborts before middleware installation} -setup {
+    set router [::tpathexp::router]
+    set ::plan_test::events {}
+} -body {
+    $router add POST /work/:id ::plan_test::item
+    set failed [catch {::web::core::install $router [::web::core::route_plan $manifest /work {}]} message]
+    $router dispatch {method GET path /missing}
+    list $failed [string match {route already mounted:*} $message] $::plan_test::events
+} -cleanup {$router destroy} -result {1 1 {}}
+
+set channel [open [file join $here api.json]]
+try {set source [read $channel]} finally {close $channel}
+
+test core-literal {adapter can distinguish literal words from opaque binding positions} -body {
+    set json [string map [list {"::plan_test::item", {"bind": "config"}} \
+        {"::plan_test::item", "@mount", {"bind": "config"}, "bind config", "$config"}] $source]
+    set api [::web::core::parse route-fixture [::tjson::json_to_typed $json]]
+    set plan [::web::core::route_plan $api /work @mount {enabled 1} {} ::plan_test::defer]
+    set route [lindex [dict get $plan routes] 0]
+    list [dict get $route handler] [dict get $route options -leave_proc]
+} -result [list [list ::plan_test::later [list ::plan_test::item @mount @mount {bind config} {$config}] 2] \
+    [list ::plan_test::later [list ::plan_test::leave @mount] 1]]
+
+test core-invalid {shape, native route syntax, references and binding names are checked up front} -body {
+    set failed {}
+    foreach {original replacement} {
+        {"ttrek-web-api/1"} {"wrong"}
+        {"type": "boolean"} {"type": "string"}
+        {"anyTrue": ["settings.enabled"]} {"anyTrue": ["settings.absent"]}
+        {"bind": "config"} {"bind": "object"}
+        {"/:id"} {"/:id/:id"}
+        {"methods": ["GET"]} {"methods": ["ANY","GET"]}
+        {"methods": ["GET"]} {"methods": ["GET","GET"]}
+    } {
+        set json [string map [list $original $replacement] $source]
+        lappend failed [catch {::web::core::parse route-fixture [::tjson::json_to_typed $json]}]
+    }
+    return $failed
+} -result {1 1 1 1 1 1 1}
+
+test core-root {equivalent root aliases coalesce and conflicting ones are rejected} -body {
+    set rootManifest $manifest
+    dict set rootManifest mount prefix allowRoot true
+    set index [dict remove [lindex [dict get $manifest routes] 0] when]
+    dict set index path {}
+    set slash [dict replace $index id slash path /]
+    dict set rootManifest routes [list $index $slash]
+    set atRoot [::web::core::route_plan $rootManifest / {}]
+    set atPrefix [::web::core::route_plan $rootManifest /wiki {}]
+    dict set slash handler [list [list ::plan_test::other] {}]
+    dict set rootManifest routes [list $index $slash]
+    list [llength [dict get $atRoot routes]] [dict get $atPrefix paths] [catch {::web::core::route_plan $rootManifest / {}}]
+} -result {1 {/wiki /wiki/} 1}
+
+set failed $::tcltest::numTests(Failed)
+::tcltest::cleanupTests
+exit [expr {$failed != 0}]

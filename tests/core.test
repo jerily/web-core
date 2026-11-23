@@ -1,8 +1,8 @@
-package require tcltest 2
+package require tcltest
 namespace import ::tcltest::test
 set here [file dirname [file normalize [info script]]]
 lappend auto_path [file dirname $here]
-package require web-core 0.1.0
+package require web-core
 ::web::core::register route-fixture $here
 
 namespace eval ::plan_test {

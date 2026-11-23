@@ -8,7 +8,7 @@ Install the manifest alongside the package index. Give the metadata package the 
 
 ```tcl
 package ifneeded web-forum::manifest 1.0.0 [list apply {{dir} {
-    package require web-core 0.1.0
+    package require web-core
     ::web::core::register web-forum $dir
     package provide web-forum::manifest 1.0.0
 }} $dir]
@@ -19,7 +19,7 @@ package ifneeded web-forum::manifest 1.0.0 [list apply {{dir} {
 ## Install routes
 
 ```tcl
-package require web-core 0.1.0
+package require web-core
 set manifest [::web::core::manifest web-forum]
 set plan [::web::core::route_plan $manifest /discuss $config]
 ::web::core::install $router $plan

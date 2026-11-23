@@ -1,0 +1,29 @@
+{
+  "format": "ttrek-web-api/1",
+  "package": "route-fixture",
+  "summary": "Exercise router and route middleware with opaque bindings.",
+  "mount": {
+    "command": "::plan_test::mount",
+    "prefix": {"option": "-prefix", "default": "/test", "allowRoot": false},
+    "docs": "readme.md"
+  },
+  "commands": {},
+  "inputs": {
+    "settings.enabled": {"type": "boolean", "default": false, "summary": "Mount the item route."}
+  },
+  "router": {"engine": "tpathexp", "strict": true},
+  "routerMiddleware": [
+    {"enter_proc": ["::plan_test::enter", "outer"], "leave_proc": ["::plan_test::leave", "outer"]},
+    {"leave_proc": ["::plan_test::leave", "inner"]},
+    {"enter_proc": ["::plan_test::enter", "inner"]}
+  ],
+  "routes": [
+    {
+      "id": "item", "summary": "Read an item using a bound argument.",
+      "methods": ["GET"], "path": "/:id", "when": {"anyTrue": ["settings.enabled"]},
+      "handler": ["::plan_test::item", {"bind": "config"}],
+      "enter_proc": ["::plan_test::enter", "route; $config [example]"],
+      "leave_proc": ["::plan_test::leave", {"bind": "config"}]
+    }
+  ]
+}
